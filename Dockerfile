@@ -1,17 +1,18 @@
 FROM eclipse-temurin:25-jre
 
-# Load environment variables
-ENV MC_VERSION=26.2
+WORKDIR /data
 
-# Set up working directory
-WORKDIR /app
+COPY --chown=minecraft:minecraft versions.lock.json \
+    /opt/minecraft/versions.lock.json
 
-# Download specified MC-server version using curl
-#RUN curl -L -o minecraft_server.jar https://piston-data.mojang.com/v1/objects/
+COPY --chown=minecraft:minecraft docker/entrypoint.sh \
+    /usr/local/bin/minecraft-entrypoint
 
-# Minecraft server port
+USER minecraft
+
+ENTRYPOINT ["minecraft-entrypoint"]
+
 EXPOSE 25565
 
 # Run the Minecraft server
-#CMD ["java", "-jar", "minecraft_server.jar"]
-
+CMD ["nogui"]
