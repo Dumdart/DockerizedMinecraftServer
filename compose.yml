@@ -1,0 +1,12 @@
+services:
+  minecraft:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mc-server:latest
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    ports:
+      - "25565:25565"
