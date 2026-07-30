@@ -1,0 +1,41 @@
+services:
+  volume_permissions:
+    image: ${TEST_MINECRAFT_IMAGE:-dockerized-minecraft-server:test}
+    volumes:
+      - minecraft_test_data:/data
+      - minecraft_test_backups:/backups
+
+  minecraft:
+    image: ${TEST_MINECRAFT_IMAGE:-dockerized-minecraft-server:test}
+    build: !reset null
+    ports: !reset []
+    volumes:
+      - minecraft_test_data:/data
+    environment:
+      EULA: "TRUE"
+      JAVA_XMS: 1G
+      JAVA_XMX: 1G
+    mem_limit: 2g
+    healthcheck:
+      interval: 5s
+      timeout: 5s
+      start_period: 2m
+      retries: 3
+
+  backup_worker:
+    image: ${TEST_MINECRAFT_IMAGE:-dockerized-minecraft-server:test}
+    volumes:
+      - minecraft_test_data:/data:ro
+      - minecraft_test_backups:/backups
+    environment:
+      BACKUP_INTERVAL_SECONDS: "3600"
+      BACKUP_RETENTION: "2"
+    healthcheck:
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  minecraft_test_data:
+  minecraft_test_backups:

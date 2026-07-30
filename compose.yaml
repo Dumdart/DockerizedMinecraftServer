@@ -1,6 +1,26 @@
 name: minecraft
 
 services:
+  volume_permissions:
+    image: ${MINECRAFT_IMAGE:-ghcr.io/dumdart/dockerizedminecraftserver:master}
+    user: "0:0"
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      - ./data:/data
+      - ./backups:/backups
+    entrypoint: ["minecraft-prepare"]
+    restart: "no"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+
   minecraft:
     build:
       context: .
@@ -22,6 +42,9 @@ services:
       MANAGEMENT_PORT: 25585
     volumes:
       - ./data:/data
+    depends_on:
+      volume_permissions:
+        condition: service_completed_successfully
     ports:
       - "${SERVER_PORT:-25565}:25565/tcp"
     expose:
@@ -29,7 +52,7 @@ services:
     mem_limit: ${CONTAINER_MEMORY:-5g}
     read_only: true
     tmpfs:
-      - /tmp:size=256m,mode=1777
+      - /tmp:size=256m,mode=1777,exec
     cap_drop:
       - ALL
     security_opt:
@@ -71,4 +94,13 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      disable: true
+      test:
+        - CMD-SHELL
+        - >-
+          test -r /data/.management-secret
+          && test -w /backups
+          && nc -z -w 3 minecraft 25585
+      interval: 30s
+      timeout: 5s
+      start_period: 2m
+      retries: 3

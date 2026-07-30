@@ -72,6 +72,8 @@ create_backup() {
 
     validate_non_negative_integer "BACKUP_RETENTION" "$BACKUP_RETENTION"
     mkdir -p -- "$BACKUP_DIR"
+    [ -w "$BACKUP_DIR" ] \
+        || fail "backup directory is not writable by uid $(id -u): $BACKUP_DIR"
 
     requested_lock_dir="$BACKUP_DIR/.backup.lock"
     if ! mkdir -- "$requested_lock_dir" 2>/dev/null; then

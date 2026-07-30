@@ -43,6 +43,7 @@ fi
 
 if command -v docker >/dev/null 2>&1; then
     docker compose --file compose.yaml config --quiet
+    docker compose --file compose.yaml --file compose.test.yaml config --quiet
     printf 'Compose validation passed\n'
 fi
 

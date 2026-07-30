@@ -24,7 +24,8 @@ RUN apt-get update \
     && groupmod --new-name minecraft ubuntu \
     && usermod --login minecraft --home /home/minecraft --move-home \
         --groups minecraft ubuntu \
-    && install -d -o minecraft -g minecraft /data /opt/minecraft/tools
+    && install -d -o minecraft -g minecraft \
+        /data /backups /opt/minecraft/tools
 
 COPY --chown=root:root versions.lock.json /opt/minecraft/versions.lock.json
 COPY --from=tools-build --chown=root:root \
@@ -34,6 +35,7 @@ COPY --from=tools-build --chown=root:root \
 COPY --chmod=755 --chown=root:root docker/entrypoint.sh /usr/local/bin/minecraft-entrypoint
 COPY --chmod=755 --chown=root:root docker/healthcheck.sh /usr/local/bin/minecraft-healthcheck
 COPY --chmod=755 --chown=root:root docker/manage.sh /usr/local/bin/minecraft-manage
+COPY --chmod=755 --chown=root:root docker/prepare-volumes.sh /usr/local/bin/minecraft-prepare
 COPY --chmod=755 --chown=root:root scripts/backup.sh /usr/local/bin/minecraft-backup
 
 VOLUME ["/data"]

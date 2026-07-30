@@ -135,12 +135,19 @@ TZ=Europe/Oslo
 Start the server:
 
 ```bash
-docker compose up -d
+docker compose up -d --wait
 docker compose logs -f minecraft
 ```
 
 The first start downloads the pinned server JAR, validates it, creates the
 vanilla directory structure, and starts Minecraft with `nogui`.
+
+Before the server starts, the one-shot `volume_permissions` service aligns the
+ownership of `data` and `backups` with `PUID` and `PGID`. This handles migrated
+files and deployments that previously ran under a different numeric user. The
+preparation service runs with only the capabilities needed to change volume
+ownership; the long-running Minecraft and backup processes remain non-root.
+The underlying filesystem must support Unix ownership changes.
 
 ## Configuration
 
@@ -276,6 +283,12 @@ sh scripts/mc-control.sh restart
 sh scripts/mc-control.sh logs
 ```
 
+`start` and Compose startup can be combined with a readiness check by running
+`docker compose up -d --wait`. Readiness verifies the authenticated management
+endpoint reports that Minecraft has completed startup. The backup worker also
+reports healthy only when its storage and private management connection are
+ready.
+
 Live administrative operations use the authenticated Minecraft management
 interface:
 
@@ -408,6 +421,13 @@ Build a disposable image and run the first-start smoke test:
 ```bash
 docker build --tag dockerized-minecraft-server:test .
 sh scripts/smoke-test.sh dockerized-minecraft-server:test
+```
+
+Exercise the complete disposable Compose stack, backups, readiness, and all
+non-interactive runtime controls:
+
+```bash
+sh scripts/compose-smoke-test.sh dockerized-minecraft-server:test
 ```
 
 Generated worlds, downloaded JARs, backups, secrets, and `.env` are excluded

@@ -1,12 +1,22 @@
 #!/bin/sh
 set -eu
 
-host="${HEALTHCHECK_HOST:-127.0.0.1}"
-port="${HEALTHCHECK_PORT:-25565}"
-timeout="${HEALTHCHECK_TIMEOUT:-3}"
+host="${MANAGEMENT_HOST:-127.0.0.1}"
+port="${MANAGEMENT_PORT:-25585}"
+secret_file="${MANAGEMENT_SECRET_FILE:-/data/.management-secret}"
 
-nc -z -w "$timeout" "$host" "$port" \
+response="$(
+    MANAGEMENT_HOST="$host" \
+    MANAGEMENT_PORT="$port" \
+    MANAGEMENT_SECRET_FILE="$secret_file" \
+        minecraft-manage minecraft:server/status '[]'
+)" || {
+    printf 'Minecraft management endpoint is not ready on %s:%s\n' "$host" "$port" >&2
+    exit 1
+}
+
+printf '%s\n' "$response" | jq -e '.result.started == true' >/dev/null \
     || {
-        printf 'Minecraft is not accepting connections on %s:%s\n' "$host" "$port" >&2
+        printf 'Minecraft server has not completed startup\n' >&2
         exit 1
     }

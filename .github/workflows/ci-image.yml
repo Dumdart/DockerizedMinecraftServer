@@ -64,6 +64,9 @@ jobs:
       - name: Test first start and fail-closed configuration
         run: sh scripts/smoke-test.sh "${TEST_IMAGE}"
 
+      - name: Test Compose runtime and controls
+        run: sh scripts/compose-smoke-test.sh "${TEST_IMAGE}"
+
       - name: Scan image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:

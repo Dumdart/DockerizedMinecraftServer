@@ -47,6 +47,15 @@ mkdir -p "$DATA_DIR"
 cd "$DATA_DIR"
 [ -w "$DATA_DIR" ] || fail "data directory is not writable by uid $(id -u): $DATA_DIR"
 
+for writable_file in \
+    "$MANAGEMENT_SECRET_FILE" \
+    "$DATA_DIR/eula.txt" \
+    "$DATA_DIR/server.properties"; do
+    if [ -e "$writable_file" ] && [ ! -w "$writable_file" ]; then
+        fail "existing file is not writable by uid $(id -u): $writable_file (check PUID/PGID)"
+    fi
+done
+
 download_url="$(
     jq -er --arg version "$MINECRAFT_VERSION" '.versions[$version].url' "$LOCK_FILE"
 )" || fail "unsupported Minecraft version: $MINECRAFT_VERSION"
@@ -65,6 +74,9 @@ if [ -f "$SERVER_JAR" ]; then
 fi
 
 if [ "$actual_sha1" != "$expected_sha1" ]; then
+    if [ -e "$SERVER_JAR" ] && [ ! -w "$SERVER_JAR" ]; then
+        fail "cached server JAR must be replaced but is not writable by uid $(id -u): $SERVER_JAR"
+    fi
     temporary_jar="$DATA_DIR/.server.jar.download"
     trap 'rm -f "$temporary_jar"' EXIT HUP INT TERM
 

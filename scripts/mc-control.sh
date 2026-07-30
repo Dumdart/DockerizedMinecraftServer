@@ -1,10 +1,17 @@
 #!/bin/sh
 set -eu
 
-project_dir="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
+default_project_dir="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
+project_dir="${MINECRAFT_PROJECT_DIR:-$default_project_dir}"
 compose() {
-    docker compose --project-directory "$project_dir" \
-        --file "$project_dir/compose.yaml" "$@"
+    if [ -n "${MINECRAFT_COMPOSE_OVERRIDE:-}" ]; then
+        docker compose --project-directory "$project_dir" \
+            --file "$project_dir/compose.yaml" \
+            --file "$MINECRAFT_COMPOSE_OVERRIDE" "$@"
+    else
+        docker compose --project-directory "$project_dir" \
+            --file "$project_dir/compose.yaml" "$@"
+    fi
 }
 
 usage() {
@@ -27,7 +34,8 @@ EOF
 
 manage() {
     method="$1"
-    params="${2:-{}}"
+    params="${2:-}"
+    [ -n "$params" ] || params='[]'
     compose exec -T minecraft minecraft-manage "$method" "$params"
 }
 
@@ -63,13 +71,13 @@ case "$command" in
         compose logs --follow minecraft
         ;;
     players)
-        manage minecraft:players '{}'
+        manage minecraft:players '[]'
         ;;
     whitelist)
         action="${2:-}"
         case "$action" in
             list)
-                manage minecraft:allowlist '{}'
+                manage minecraft:allowlist '[]'
                 ;;
             add|remove)
                 player_name="${3:-}"
@@ -87,7 +95,9 @@ case "$command" in
         ;;
     rpc)
         [ -n "${2:-}" ] || usage
-        manage "$2" "${3:-{}}"
+        rpc_params="${3:-}"
+        [ -n "$rpc_params" ] || rpc_params='[]'
+        manage "$2" "$rpc_params"
         ;;
     *)
         usage
