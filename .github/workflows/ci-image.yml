@@ -65,7 +65,7 @@ jobs:
         run: sh scripts/smoke-test.sh "${TEST_IMAGE}"
 
       - name: Scan image
-        uses: aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: ${{ env.TEST_IMAGE }}
           format: sarif
