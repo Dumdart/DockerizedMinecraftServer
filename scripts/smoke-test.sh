@@ -5,6 +5,8 @@ image="${1:-dockerized-minecraft-server:test}"
 container_name="minecraft-smoke-$$"
 volume_name="minecraft-smoke-data-$$"
 
+# Check cleanup is invoked indirectly by the trap below.
+# shellcheck disable=SC2317
 cleanup() {
     docker rm --force "$container_name" >/dev/null 2>&1 || true
     docker volume rm "$volume_name" >/dev/null 2>&1 || true

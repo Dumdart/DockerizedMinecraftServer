@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-project_dir="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+project_dir="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 cd "$project_dir"
 
 for script in docker/*.sh scripts/*.sh; do

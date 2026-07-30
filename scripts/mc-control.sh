@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-project_dir="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+project_dir="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 compose() {
     docker compose --project-directory "$project_dir" \
         --file "$project_dir/compose.yaml" "$@"

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-project_dir="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+project_dir="$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)"
 lock_file="${LOCK_FILE:-$project_dir/versions.lock.json}"
 manifest_url="${VERSION_MANIFEST_URL:-https://piston-meta.mojang.com/mc/game/version_manifest_v2.json}"
 work_dir="$(mktemp -d)"

@@ -39,8 +39,9 @@ esac
 case "$MANAGEMENT_PORT" in
     ''|*[!0-9]*) fail "MANAGEMENT_PORT must be an integer" ;;
 esac
-[ "$MANAGEMENT_PORT" -ge 1 ] && [ "$MANAGEMENT_PORT" -le 65535 ] \
-    || fail "MANAGEMENT_PORT must be between 1 and 65535"
+if [ "$MANAGEMENT_PORT" -lt 1 ] || [ "$MANAGEMENT_PORT" -gt 65535 ]; then
+    fail "MANAGEMENT_PORT must be between 1 and 65535"
+fi
 
 mkdir -p "$DATA_DIR"
 cd "$DATA_DIR"
