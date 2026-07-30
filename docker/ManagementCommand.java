@@ -46,31 +46,30 @@ public final class ManagementCommand {
                 """.formatted(method, params).strip();
         ResponseListener listener = new ResponseListener();
 
-        try (HttpClient client = HttpClient.newBuilder()
+        HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(CONNECT_TIMEOUT)
-                .build()) {
-            WebSocket socket = client.newWebSocketBuilder()
-                    .connectTimeout(CONNECT_TIMEOUT)
-                    .header("Authorization", "Bearer " + secret)
-                    .buildAsync(endpoint, listener)
-                    .get(CONNECT_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+                .build();
+        WebSocket socket = client.newWebSocketBuilder()
+                .connectTimeout(CONNECT_TIMEOUT)
+                .header("Authorization", "Bearer " + secret)
+                .buildAsync(endpoint, listener)
+                .get(CONNECT_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
 
-            socket.sendText(request, true).get(CONNECT_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
-            String response = listener.response()
-                    .get(RESPONSE_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
-            socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+        socket.sendText(request, true).get(CONNECT_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+        String response = listener.response()
+                .get(RESPONSE_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+        socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
 
-            System.out.println(response);
-            int resultIndex = response.indexOf("\"result\"");
-            int errorIndex = response.indexOf("\"error\"");
-            boolean topLevelError = errorIndex >= 0
-                    && (resultIndex < 0 || errorIndex < resultIndex);
-            boolean wrappedError = response.matches(
-                    "(?s).*\"result\"\\s*:\\s*\\{\\s*\"jsonrpc\"\\s*:\\s*\"2.0\""
-                            + "\\s*,\\s*\"id\"\\s*:\\s*1\\s*,\\s*\"error\"\\s*:.*");
-            if (topLevelError || wrappedError) {
-                System.exit(2);
-            }
+        System.out.println(response);
+        int resultIndex = response.indexOf("\"result\"");
+        int errorIndex = response.indexOf("\"error\"");
+        boolean topLevelError = errorIndex >= 0
+                && (resultIndex < 0 || errorIndex < resultIndex);
+        boolean wrappedError = response.matches(
+                "(?s).*\"result\"\\s*:\\s*\\{\\s*\"jsonrpc\"\\s*:\\s*\"2.0\""
+                        + "\\s*,\\s*\"id\"\\s*:\\s*1\\s*,\\s*\"error\"\\s*:.*");
+        if (topLevelError || wrappedError) {
+            System.exit(2);
         }
     }
 
