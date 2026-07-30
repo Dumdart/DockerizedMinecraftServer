@@ -79,7 +79,7 @@ jobs:
           && hashFiles('trivy-results.sarif') != ''
           && (github.event_name != 'pull_request'
           || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@b374143c1149a9113eeb4eddf60c50ddbd39b913
+        uses: github/codeql-action/upload-sarif@4187e74d05793876e9989daffde9c3e66b4acd07
         with:
           sarif_file: trivy-results.sarif
 
