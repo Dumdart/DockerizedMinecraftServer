@@ -69,15 +69,20 @@ and is not stored in persistent server data.
 ├─ .env.example
 ├─ versions.lock.json
 ├─ docker/
+│  ├─ ManagementCommand.java
 │  ├─ entrypoint.sh
-│  └─ healthcheck.sh
+│  ├─ healthcheck.sh
+│  └─ manage.sh
 ├─ scripts/
 │  ├─ mc-control.sh
-│  └─ backup.sh
+│  ├─ backup.sh
+│  ├─ smoke-test.sh
+│  ├─ test.sh
+│  └─ verify-version-lock.sh
 ├─ docs/
 ├─ .github/
 │  └─ workflows/
-│     └─ image.yml
+│     └─ ci-image.yml
 └─ README.md
 ```
 
@@ -116,7 +121,6 @@ Review `.env` and explicitly accept the Minecraft EULA:
 
 ```dotenv
 EULA=TRUE
-MINECRAFT_VERSION=26.2
 
 JAVA_XMS=2G
 JAVA_XMX=4G
@@ -143,9 +147,12 @@ vanilla directory structure, and starts Minecraft with `nogui`.
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `EULA` | Yes | — | Must be exactly `TRUE` before download or startup |
-| `MINECRAFT_VERSION` | Yes | `26.2` | Exact version present in `versions.lock.json` |
+| `MINECRAFT_VERSION` | No | Repository selection | Supplied by Compose; an override must match `versions.lock.json` |
+| `MINECRAFT_IMAGE` | No | GHCR `master` tag | Launcher image; pin a release or SHA in production |
 | `JAVA_XMS` | No | `2G` | Initial JVM heap |
 | `JAVA_XMX` | No | `4G` | Maximum JVM heap |
+| `BACKUP_INTERVAL_SECONDS` | No | `1800` | Delay between backup attempts |
+| `BACKUP_RETENTION` | No | `48` | Number of recent archives to retain; `0` retains all |
 | `CONTAINER_MEMORY` | No | `5G` | Total container memory limit |
 | `SERVER_PORT` | No | `25565` | Published Minecraft TCP port |
 | `PUID` | No | `1000` | Host user ID used for persistent files |
@@ -153,8 +160,9 @@ vanilla directory structure, and starts Minecraft with `nogui`.
 | `TZ` | No | `UTC` | Container timezone |
 
 Minecraft gameplay settings remain in `data/server.properties`. The container
-does not overwrite an existing properties file, whitelist, operator list, ban
-list, or world.
+does not overwrite gameplay properties, whitelist, operator list, ban list, or
+world. It manages only `eula.txt` and the private management-server properties
+needed for administration and consistent backups.
 
 ## Persistent host layout
 
@@ -184,23 +192,26 @@ also remove its recovery points.
 
 ## Version and checksum policy
 
-`versions.lock.json` maps supported Minecraft releases to their official Mojang
-download URL and checksum. Startup fails closed when:
+`versions.lock.json` records the repository-selected Minecraft release and maps
+it to its official Mojang download URL and checksum. Startup fails closed when:
 
-- the requested version is absent from the lock file;
+- the requested version differs from the tracked selection;
+- the selected version is absent from the lock file;
 - the official download cannot be completed;
 - the downloaded JAR does not match the pinned checksum; or
 - a cached JAR no longer matches its lock entry.
 
 Minecraft never follows `latest`. Every upgrade, including patch releases,
-requires an explicit commit or pull request updating the lock file.
+requires an explicit commit or pull request updating the lock file and Compose
+default. Leave `MINECRAFT_VERSION` unset in `.env` so the tracked selection is
+authoritative.
 
 After merging an upgrade:
 
 ```bash
+sh scripts/mc-control.sh backup
 git pull --ff-only
 docker compose pull
-./scripts/backup.sh
 docker compose up -d
 docker compose logs -f minecraft
 ```
@@ -246,32 +257,33 @@ A practical starting margin is at least 1 GiB or 20–25%, whichever is larger.
 Memory changes are applied with a controlled restart:
 
 ```bash
-./scripts/mc-control.sh restart
+sh scripts/mc-control.sh restart
 ```
 
-The JVM maximum heap is a startup-time limit. Automatically changing that
-ceiling while the same Java process remains active is not supported.
+The JVM maximum heap is a startup-time limit. Automatically selecting a new
+ceiling requires a controlled container recreation and is intentionally outside
+this project's current scope.
 
 ## Operations
 
 The host-side control script keeps routine operations consistent:
 
 ```bash
-./scripts/mc-control.sh status
-./scripts/mc-control.sh start
-./scripts/mc-control.sh stop
-./scripts/mc-control.sh restart
-./scripts/mc-control.sh logs
+sh scripts/mc-control.sh status
+sh scripts/mc-control.sh start
+sh scripts/mc-control.sh stop
+sh scripts/mc-control.sh restart
+sh scripts/mc-control.sh logs
 ```
 
 Live administrative operations use the authenticated Minecraft management
 interface:
 
 ```bash
-./scripts/mc-control.sh players
-./scripts/mc-control.sh whitelist list
-./scripts/mc-control.sh whitelist add PLAYER_NAME
-./scripts/mc-control.sh whitelist remove PLAYER_NAME
+sh scripts/mc-control.sh players
+sh scripts/mc-control.sh whitelist list
+sh scripts/mc-control.sh whitelist add PLAYER_NAME
+sh scripts/mc-control.sh whitelist remove PLAYER_NAME
 ```
 
 Container lifecycle and Minecraft administration are intentionally separate. A
@@ -280,6 +292,8 @@ on the Ubuntu host. Use SSH over Tailscale for remote administration.
 
 The Minecraft management endpoint is bound privately and is not published to
 the internet. Its secret is generated per deployment and stored outside Git.
+The launcher refreshes only its own management properties on startup; other
+Minecraft settings remain under the operator's control.
 
 ## Graceful shutdown
 
@@ -291,21 +305,38 @@ Use the provided control script or `docker compose stop`; do not kill the Java
 process directly:
 
 ```bash
-./scripts/mc-control.sh stop
+sh scripts/mc-control.sh stop
 ```
 
 ## Backups
 
-Create a save-aware backup with:
+Create an on-demand save-aware backup with:
 
 ```bash
-./scripts/backup.sh
+sh scripts/mc-control.sh backup
 ```
 
-The script coordinates a world save, archives persistent state into
-`/opt/apps/minecraft/backups`, verifies the archive, and restores normal save
-behavior. It refuses to report success when archive creation or verification
-fails.
+The `backup_worker` Compose service runs `minecraft-backup` every 30 minutes.
+It asks Minecraft to disable automatic saving, flushes all state to disk,
+copies the persistent state into a frozen staging directory, and immediately
+restores automatic saving. It then compresses and verifies the staging copy
+while the server continues running. A failed copy restores automatic saving,
+and an unverified archive is never published as a completed backup.
+
+Regenerable runtime files (`server.jar`, `libraries`, `versions`, and logs) and
+the management secret are excluded so backups focus on worlds and
+operator-owned configuration. A restored deployment generates a new secret.
+
+Backups are written to `/opt/apps/minecraft/backups` with UTC timestamps. The
+newest 48 archives are retained by default. Set `BACKUP_RETENTION=0` to retain
+all archives, or set a different non-negative count as needed. Change
+`BACKUP_INTERVAL_SECONDS` to adjust the interval.
+
+The Dockerfile registers the backup command in the shared image. Compose runs
+that command in a dedicated sidecar container with read-only access to `/data`
+and write access to `/backups`. It uses Mojang's authenticated management
+protocol on the private Compose network; the endpoint is not published to the
+host.
 
 Always create and verify a backup before:
 
@@ -369,24 +400,25 @@ docker compose build
 Run the validation suite:
 
 ```bash
-./scripts/test.sh
+sh scripts/test.sh
 ```
 
-Run a disposable first-start smoke test:
+Build a disposable image and run the first-start smoke test:
 
 ```bash
-docker compose --profile test up \
-  --build --abort-on-container-exit --exit-code-from smoke-test
+docker build --tag dockerized-minecraft-server:test .
+sh scripts/smoke-test.sh dockerized-minecraft-server:test
 ```
 
-Generated worlds, downloaded JARs, secrets, and `.env` are excluded from Git.
+Generated worlds, downloaded JARs, backups, secrets, and `.env` are excluded
+from Git.
 
 ## CI/CD and GHCR
 
 GitHub Actions validates pull requests by:
 
-- linting Dockerfiles, Compose files, Markdown, JSON, and shell scripts;
-- testing entrypoint validation and checksum failures;
+- validating Compose, JSON, shell syntax, and shell scripts;
+- testing fail-closed entrypoint validation and a real first start;
 - building the image;
 - running container smoke tests;
 - scanning the final image for known vulnerabilities; and
@@ -395,12 +427,12 @@ GitHub Actions validates pull requests by:
 Merges and version tags publish immutable images to:
 
 ```text
-ghcr.io/dumdart/dockerized-minecraft-server
+ghcr.io/dumdart/dockerizedminecraftserver
 ```
 
-Published images include semantic project tags and a commit-SHA tag. Production
-Compose configuration pins a deliberate image version so that deployments can
-be reproduced and rolled back.
+Published images include Git tags, the `master` branch tag, and an immutable
+commit-SHA tag. Set `MINECRAFT_IMAGE` to a deliberate release or SHA tag in
+production so deployments can be reproduced and rolled back.
 
 ## Security
 
@@ -416,7 +448,8 @@ be reproduced and rolled back.
 
 ## License
 
-The source code in this repository is licensed independently from Minecraft.
+The source code in this repository is available under the [MIT License](LICENSE)
+and is licensed independently from Minecraft.
 Minecraft, its server software, and related assets remain subject to Mojang and
 Microsoft's terms. This project is not official, approved by, or affiliated
 with Mojang or Microsoft.

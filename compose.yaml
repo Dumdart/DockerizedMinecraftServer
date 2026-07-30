@@ -1,0 +1,74 @@
+name: minecraft
+
+services:
+  minecraft:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        IMAGE_REVISION: ${IMAGE_REVISION:-local}
+    image: ${MINECRAFT_IMAGE:-ghcr.io/dumdart/dockerizedminecraftserver:master}
+    restart: unless-stopped
+    init: true
+    user: "${PUID:-1000}:${PGID:-1000}"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      EULA: ${EULA:-FALSE}
+      MINECRAFT_VERSION: ${MINECRAFT_VERSION:-26.2}
+      JAVA_XMS: ${JAVA_XMS:-2G}
+      JAVA_XMX: ${JAVA_XMX:-4G}
+      MANAGEMENT_PORT: 25585
+    volumes:
+      - ./data:/data
+    ports:
+      - "${SERVER_PORT:-25565}:25565/tcp"
+    expose:
+      - "25585"
+    mem_limit: ${CONTAINER_MEMORY:-5g}
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 2m
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/minecraft-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 2m
+      retries: 3
+
+  backup_worker:
+    image: ${MINECRAFT_IMAGE:-ghcr.io/dumdart/dockerizedminecraftserver:master}
+    restart: unless-stopped
+    init: true
+    user: "${PUID:-1000}:${PGID:-1000}"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MANAGEMENT_HOST: minecraft
+      MANAGEMENT_PORT: 25585
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-1800}
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-48}
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+    depends_on:
+      minecraft:
+        condition: service_healthy
+    entrypoint: ["minecraft-backup"]
+    command: ["loop"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      disable: true
