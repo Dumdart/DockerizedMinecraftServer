@@ -1,2 +1,7 @@
-.github/workflows
-.docs
+.git
+.github
+.env
+backups
+data
+docs
+tests
