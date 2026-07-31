@@ -65,7 +65,7 @@ case "$command" in
         compose stop
         ;;
     restart)
-        compose up -d --force-recreate minecraft
+        compose up -d --force-recreate minecraft backup_worker
         ;;
     logs)
         compose logs --follow minecraft

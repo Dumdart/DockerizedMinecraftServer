@@ -45,6 +45,7 @@ control rpc minecraft:server/status '[]' | grep -q '"started":true'
 # Check the scheduler releases its lock before exercising an on-demand backup.
 attempt=0
 while [ "$attempt" -lt 60 ]; do
+    # shellcheck disable=SC2016
     if compose exec -T backup_worker sh -c \
         'set -- /backups/minecraft-*.tar.gz
         [ -f "$1" ] && [ ! -d /backups/.backup.lock ]'; then
@@ -59,6 +60,7 @@ done
 }
 
 control backup
+# shellcheck disable=SC2016
 compose exec -T backup_worker sh -c '
     set -- /backups/minecraft-*.tar.gz
     [ "$#" -eq 2 ]

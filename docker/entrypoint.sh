@@ -126,6 +126,7 @@ set_server_property management-server-tls-enabled false
 chmod 600 "$DATA_DIR/server.properties"
 
 exec java \
+    --enable-native-access=ALL-UNNAMED \
     "-Xms${JAVA_XMS:-2G}" \
     "-Xmx${JAVA_XMX:-4G}" \
     -jar "$SERVER_JAR" "$@"
